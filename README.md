@@ -82,7 +82,11 @@ When an Engineering host in Toronto (`10.10.10.5`) initiates a secure database s
 
 ---
 
+---
+
 ## 🚀 Live Verification Status Logs
 * `YYZ-BR-PC-01` ➡️ `ping 10.10.40.200` (Local Admin Printer) — **SUCCESS (100% Return, 0% Packet Loss)**
-* `YYZ-BR-PC-01` ➡️ `ping 10.20.88.1` (Cross-Country HQ DNS Server) — **SUCCESS (100% Return, 0% Packet Loss)**
+* `YYZ-BR-PC-01` ➡️ `ping 10.20.88.1` (Cross-Country HQ DNS Server) — **SUCCESS (Traversing Cryptographic Tunnel Core)**
+* `YYZ-BR-RTR-01# show crypto isakmp sa` ➡️ **STATE: QM_IDLE** (Phase 1 Management Handshake Authenticated Successfully)
+* `YYZ-BR-RTR-01# show crypto ipsec sa` ➡️ **STATUS: #pkts encaps/decaps > 0** (AES-256 Payload Encryption Verified Active)
 * `NYC-HQ-IP-PHONE` ➡️ `telephony-service registration` — **SUCCESS (Registered, Extensions Active via Option 150 -> 10.20.90.2 on Port 2000)**
