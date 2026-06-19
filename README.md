@@ -13,6 +13,8 @@ The entire framework was designed using a **Top-Down Backbone-First Model** to g
 * **Automated Network Services**: Multi-pool Cisco IOS DHCP engines, isolated infrastructure exclusions, DHCP Option 150 voice parameter targeting.
 * **Unified Communications (VoIP)**: Cisco CallManager Express (CME) software integration, global telephony service engines, auto-registration matrices.
 * **Layer 2 Edge Protection**: 802.1Q encapsulation trunking, VTP Domain isolation, Spanning-Tree PortFast, and edge BPDU Guard enforcement.
+* Programmatic Network Automation: Automated multi-device health scanning using Python requests architectures and defensive structural dictionaries.* REST API System Operations: Comprehensive CRUD operations parsing JSON payload matrices across Centralized Controller fabrics (GET/POST/PUT/DELETE).* Software-Defined Architecture Theory: Direct mastery of Northbound/Southbound abstraction layers, Centralized Control Planes, and Agentless configuration management.
+
 
 ---
 
