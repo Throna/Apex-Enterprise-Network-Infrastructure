@@ -1,0 +1,49 @@
+import json
+import requests
+
+# Disable SSL verification warnings for local enterprise lab testing environments
+requests.packages.urllib3.disable_warnings()
+
+# The API URL endpoint targeting the enterprise network controller fabric
+api_url = "https://cisco.com"
+
+# Step A: Establish the secure authentication headers
+headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
+
+print("🚀 Initiating programmatic API connection to Cisco Controller...")
+
+try:
+    # Step B: Execute the live HTTP GET Request across the network
+    response = requests.get(api_url, headers=headers, verify=False, timeout=10)
+    
+    # Check if the HTTP status code returns a perfect 200 SUCCESS stamp
+    if response.status_code == 200:
+        print("✅ Connection Authenticated. Parsing device matrix payloads...")
+        
+        # Step C: Decode the raw JSON string text into a native Python dictionary
+        device_data = response.json()
+        
+        print("\n===================================================")
+        print("         ENTERPRISE EDGE HEALTH REPORT             ")
+        print("===================================================\n")
+        
+        # Step D: Process and print the network device status loop
+        # Note: In a real environment, device_data houses an array of device objects
+        for device in device_data.get("response", []):
+            hostname = device.get("hostname", "UNKNOWN-HOST")
+            ip_addr  = device.get("managementIpAddress", "0.0.0.0")
+            family   = device.get("family", "Generic Hardware")
+            status   = device.get("upTime", "Offline")
+            
+            print(f"📡 Device: {hostname:<18} | IP: {ip_addr:<15} | Platform: {family:<15} | Uptime: {status}")
+            
+        print("\n===================================================")
+        
+    else:
+        print(f"❌ API Request Failed. Controller returned status code: {response.status_code}")
+
+except Exception as error:
+    print(f"💥 Critical Script Failure. Network connection broke down: {error}")
