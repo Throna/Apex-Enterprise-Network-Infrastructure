@@ -46,4 +46,4 @@ try:
         print(f"❌ API Request Failed. Controller returned status code: {response.status_code}")
 
 except Exception as error:
-    print(f"💥 Critical Script Failure. Network connection broke down: {error}")
+    print(f"💥 Critical Script Failure. Network connection broke down: {error}") 
