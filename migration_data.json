@@ -1,0 +1,28 @@
+{
+  "target_device": "YYZ-BR-CS-NEW",
+  "model": "Catalyst-3560",
+  "management_ip": "10.10.90.1",
+  "vlans_to_migrate": [
+    {
+      "vlan_id": 10,
+      "name": "Engineering_Data",
+      "svi_ip": "10.10.10.254",
+      "subnet_mask": "255.255.255.0",
+      "voice_vlan": false
+    },
+    {
+      "vlan_id": 20,
+      "name": "Sales_Department",
+      "svi_ip": "10.10.20.254",
+      "subnet_mask": "255.255.255.0",
+      "voice_vlan": false
+    },
+    {
+      "vlan_id": 100,
+      "name": "Telephony_Voice",
+      "svi_ip": "10.10.100.254",
+      "subnet_mask": "255.255.255.0",
+      "voice_vlan": true
+    }
+  ]
+}
