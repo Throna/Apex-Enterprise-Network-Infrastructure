@@ -94,3 +94,21 @@ When an Engineering host in Toronto (`10.10.10.5`) initiates a secure database s
 * `YYZ-BR-RTR-01# show crypto isakmp sa` ➡️ **STATE: QM_IDLE** (Phase 1 Management Handshake Authenticated Successfully)
 * `YYZ-BR-RTR-01# show crypto ipsec sa` ➡️ **STATUS: #pkts encaps/decaps > 0** (AES-256 Payload Encryption Verified Active)
 * `NYC-HQ-IP-PHONE` ➡️ `telephony-service registration` — **SUCCESS (Registered, Extensions Active via Option 150 -> 10.20.90.2 on Port 2000)**
+
+
+# Engineering Logbook: Phase 4 Network Infrastructure Upgrade
+
+## 1. Centralized DHCP Server Architecture Migration
+- Completely decommissioned and vaporized localized data DHCP pools (`MGMT_POOL`, `ENG_POOL`, `SALES_POOL`, `ADMIN_POOL`) from the Toronto multi-layer switch core to achieve a 100% centralized data architecture.
+- Retained local `TELEPHONY_VOICE_POOL` on the Toronto switch fabric to guarantee Local Voice Survivability in the event of cross-country WAN dropouts.
+- Provisioned four master data scopes on the centralized New York Data Center Server (`10.20.88.1`) to service the Toronto branch subnets natively utilizing the internal DHCP server configuration engine.
+
+## 2. Layer 3 Cross-Country Shipping Pipelines
+- Applied `ip helper-address 10.20.88.1` across all Toronto branch virtual routing SVI interfaces (`interface vlan 10`, `interface vlan 20`, `interface vlan 40`, `interface vlan 99`).
+- Confirmed the automated relay mechanism leverages the hidden GIADDR (Gateway Interface IP Address) header stamp to perfectly distinguish and allocate distinct `10.10.X.X` Toronto subnets from the New York server across the site-to-site IPsec VPN tunnel.
+
+## 3. Network Address Translation (NAT/PAT Overload) Deployment
+- Constructed a public simulated Internet Service Provider backbone (`ISP-GLOBAL-RTR`) using real-world point-to-point IP space: `203.0.113.0/30` for Toronto and `198.51.100.0/30` for New York.
+- Established defensive Port Address Translation (PAT) boundaries on the Toronto Edge Router (`YYZ-BR-RTR-01`) using `ip nat inside` on the internal transit link interface (`Gig0/1`) and `ip nat outside` on the internet-facing WAN interface (`Gig0/2`).
+- Ignited the translation engine via `ip nat inside source list 1 interface gigabitEthernet 0/2 overload` to map up to 65,000 private local hosts to a single public IP, tracking connection states dynamically via Layer 4 TCP/UDP port tables.
+- Provisioned static Gateways of Last Resort (`ip route 0.0.0.0 0.0.0.0 203.0.113.1`) to successfully route all unknown corporate web traffic up to the public internet core.
