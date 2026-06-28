@@ -33,9 +33,11 @@ This infrastructure was designed and validated using an advanced interactive eng
 ## 📊 Global Enterprise Addressing Blueprints
 
 ### 🍁 Toronto Branch Matrix (YYZ-BR)
-* **Inter-Site WAN Gateway Link**: `10.0.0.1/30`
-* **Switch-to-Router Transit Link**: `10.10.90.1/30`
-* **Local Gateway Allocation**: `.254` (Configured via Layer 3 SVIs)
+
+- **Inter-Site WAN Gateway Link**: 10.0.0.1/30
+- **Switch-to-Router Transit Link**: 10.10.90.1/30 (Core Switch G1/0/3 ➡ Edge Router G0/1)
+- **Local Gateway Allocation**: .254 (Configured via Layer 3 SVIs)
+
 
 | VLAN ID | Department Zone | IP Network Block | Assigned DHCP Pool |
 | :--- | :--- | :--- | :--- |
