@@ -44,7 +44,6 @@ This infrastructure was designed and validated using an advanced interactive eng
 | **VLAN 10** | Engineering Data | `10.10.10.0/24` | `ENG_POOL` (Excl: .250-.254) |
 | **VLAN 20** | Sales Department | `10.10.20.0/24` | `SLS_POOL` (Excl: .250-.254) |
 | **VLAN 40** | Administration | `10.10.40.0/24` | `ADM_POOL` (Excl: .250-.254) |
-| **VLAN 88** | Local Web Server | `10.10.88.0/24` | *Static Allocation: 10.10.88.1* |
 | **VLAN 99** | Secure Management| `10.10.99.0/24` | *Static Infrastructure Switch IPs* |
 | **VLAN 100**| Telephony/Voice | `10.10.100.0/24`| `VOICE_POOL` (Option 150 -> .90.2) |
 
