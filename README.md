@@ -113,3 +113,11 @@ When an Engineering host in Toronto (`10.10.10.5`) initiates a secure database s
 - Established defensive Port Address Translation (PAT) boundaries on the Toronto Edge Router (`YYZ-BR-RTR-01`) using `ip nat inside` on the internal transit link interface (`Gig0/1`) and `ip nat outside` on the internet-facing WAN interface (`Gig0/2`).
 - Ignited the translation engine via `ip nat inside source list 1 interface gigabitEthernet 0/2 overload` to map up to 65,000 private local hosts to a single public IP, tracking connection states dynamically via Layer 4 TCP/UDP port tables.
 - Provisioned static Gateways of Last Resort (`ip route 0.0.0.0 0.0.0.0 203.0.113.1`) to successfully route all unknown corporate web traffic up to the public internet core.
+
+
+## Logbook Update: Layer 2 Spanning-Tree & Port-Security Stabilization
+- Identified a critical, country-wide Port Security conflict where `switchport port-security mac-address sticky` was incorrectly deployed across multi-device 802.1Q dynamic trunk port links (`Gig1/0/1` and `Gig1/0/2`).
+- Decommissioned Port Security from core uplinks across all regional access layers and the Toronto Core Switch (`YYZ-BR-CS-01`) to allow simultaneous transport of multiple system and user host MAC addresses.
+- Restored `switchport voice vlan 100` mapping symmetry across the access switches to split telephony frames seamlessly away from standard data subnets.
+- Validated Choice B (Transit Model) voice plumbing with Toronto Core Switch SVI 100 (`10.10.100.254`) successfully routing DHCP requests across the point-to-point transport highway (`10.10.90.0/30`) to the Edge Router pool.
+
