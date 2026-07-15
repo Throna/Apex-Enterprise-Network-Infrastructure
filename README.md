@@ -162,7 +162,7 @@ Migrated the entire inter-site and intra-site routing architecture from rigid st
 
 ---
 
-## 📚 Key Engineering Lessons Documented
+### 📚 Key Engineering Lessons Documented
 
 | Concept | Lesson |
 | :--- | :--- |
@@ -174,3 +174,71 @@ Migrated the entire inter-site and intra-site routing architecture from rigid st
 | ip helper-address | Required whenever DHCP client and server are on different subnets, even one hop away |
 | PortFast | Mandatory on all end-device ports — without it, STP convergence delay causes DHCP timeouts on device power-up |
 | Version Control | Always `copy run start` and backup configs externally before making changes — a working rollback point is worth more than any feature |
+
+
+---
+
+## Phase 6: Disaster Recovery, Hub-and-Spoke Exploration & Gateway Redundancy
+
+### Overview
+This phase began as a hands-on hub-and-spoke crypto map exercise (adding a third branch, "London," to test multi-peer IPsec routing) and evolved into a live disaster-recovery exercise after an unplanned configuration loss on `NYC-HQ-RTR-01`, followed by the start of Layer 3 gateway redundancy (HSRP) at the Toronto distribution layer.
+
+### 1. Hub-and-Spoke Crypto Map Exploration (London Branch)
+- Built a third branch router ("London") connected to `NYC-HQ-RTR-01` via a dedicated transit link, intended to validate a hub-and-spoke IPsec topology where NYC acts as the hub relaying encrypted traffic between Toronto and London.
+- Confirmed the core hub-and-spoke crypto map pattern: multiple `crypto map <name> <seq>` entries under one map name, each with its own peer and its own dedicated crypto ACL, but a shared/reusable ISAKMP policy and transform-set (since those describe capabilities, not relationships).
+- **Key finding**: crypto ACLs cannot be shared across tunnels to different peers — the `match address` ACL is what ties traffic to a specific peer's crypto map sequence entry. Consolidating multiple tunnels' traffic into one ACL causes traffic to be misdirected to the wrong peer.
+- **Key finding**: relayed spoke-to-spoke traffic (e.g., London → Toronto via NYC) requires the hub's crypto ACL for each tunnel to explicitly include the *other* spoke's subnet, not just the hub's own subnet — packet source/destination IPs are unchanged by decryption, so the hub's ACLs must account for all traffic transiting that specific tunnel.
+- **Packet Tracer limitation discovered**: crypto maps cannot be applied to an SVI backed by an EtherSwitch network module (`no switchport` is not supported on these simulated modules, unlike real Cisco hardware where this is a documented, supported workaround). Crypto maps require a native routed interface.
+- **Decision**: the London branch was removed from the topology after confirming the concept was understood and the hardware limitation was hit — the learning objective (multi-peer crypto maps, hub-and-spoke ACL scoping) was achieved without requiring a full hardware rework.
+
+### 2. Disaster Recovery: NYC-HQ-RTR-01 Configuration Loss
+- **Root cause**: a router reload (triggered while adding/removing a physical EtherSwitch module) resulted in the loss of the OSPF process, IPsec crypto configuration, and module-related interface config — despite `write memory` having been executed beforehand.
+- **Diagnosis**: confirmed `show startup-config` still contained the fully correct configuration, while `show running-config` did not — indicating the reload did not properly reload startup-config into the running configuration (a Packet Tracer reload reliability issue, not a save failure).
+- **Fix**: `copy startup-config running-config` — merges NVRAM's saved config directly into the active running config without requiring a further reload.
+- **Standing mitigation adopted**: after any `write memory`, verify with `show startup-config` before trusting a reload to restore it; save the `.pkt` file itself as an additional safety net.
+- Full OSPF process and the full crypto stack were successfully rebuilt from concept-level understanding rather than copy-paste.
+
+### 3. Stale IPsec SA Recovery Technique
+- After the config restore, `show crypto isakmp sa` showed a mismatched state between peers (YYZ: `QM_IDLE/ACTIVE`, NYC: `MM_NO_STATE/ACTIVE`) — indicating a stale Security Association blocking fresh Phase 1 negotiation.
+- **Packet Tracer limitation**: `clear crypto isakmp` / `clear crypto sa` are not supported in this simulated IOS version.
+- **Workaround discovered**: removing and re-applying the crypto map on the interface (`no crypto map <name>` then `crypto map <name>`) forces both peers to drop stale SA state and renegotiate Phase 1 cleanly. Confirmed both peers returned to matching `QM_IDLE/ACTIVE` state afterward.
+- **Downstream effect confirmed**: centralized DHCP relay for Toronto data VLANs only succeeded once Phase 1/Phase 2 were both re-established — a device showing an APIPA address was correctly traced back to "tunnel not yet up" rather than a DHCP or ACL misconfiguration.
+
+### 4. HSRP Gateway Redundancy (Toronto Distribution Layer) — In Progress
+- **Objective**: eliminate the single point of failure at the Toronto core switch (`YYZ-BR-CS-01`).
+- Added a second Layer 3 switch, `YYZ-BR-CS-02`, dual-homed to both existing access switches (`2960-24TT`, `2960-24PS`) alongside CS-01, plus a dedicated inter-switch link between CS-01 and CS-02 for HSRP hello exchange.
+- Re-addressed VLAN 10 SVIs: CS-01 retained a dedicated real IP (`10.10.10.252`), CS-02 assigned `10.10.10.253`, freeing the original gateway address (`10.10.10.254`) to become the shared HSRP virtual IP — no end-device reconfiguration required.
+- Configured HSRP group 10 on VLAN 10 on both switches (`standby 10 ip 10.10.10.254`); confirmed CS-01 elected Active by default, CS-02 correctly showing Standby.
+- Tested and confirmed priority + preempt behavior: setting CS-02 to priority 150 with `standby 10 preempt` forced a clean, disruption-free takeover from a healthy CS-01 — virtual IP and virtual MAC remained constant throughout, requiring no ARP re-learning by end devices.
+- **Remaining work**: replicate HSRP across VLANs 20, 40, 88, 99, 100; configure `standby track` against each switch's uplink; integrate CS-02 into OSPF; validate a genuine failure-triggered failover.
+
+---
+
+## 📚 Key Engineering Lessons Documented (Phase 6 Additions)
+
+| Concept | Lesson |
+| :--- | :--- |
+| Crypto ACL Scope | Crypto ACLs are peer-specific, not reusable across tunnels — the ACL match is what routes traffic to the correct peer in a crypto map |
+| Hub-and-Spoke Relay Traffic | A hub's crypto ACL for Tunnel A must include Tunnel B's subnet if Tunnel B's traffic is relayed through Tunnel A |
+| Reusable vs Peer-Specific Crypto Config | ISAKMP policies and transform-sets are global/reusable across all peers; crypto ACLs and peer statements are not |
+| Packet Tracer EtherSwitch Modules | Crypto maps cannot be applied to switch-module-backed SVIs in Packet Tracer; requires a native routed interface |
+| `write memory` ≠ Reload-Proof | `write memory` can succeed while a subsequent `reload` still fails to restore the saved config in Packet Tracer — verify with `show startup-config` |
+| Stale IPsec SA Recovery | `no crypto map` / `crypto map` re-application forces clean Phase 1/2 renegotiation when `clear crypto isakmp` isn't available |
+| Symptom vs Root Cause | An APIPA address is a DHCP symptom, but the root cause can live one layer down (e.g., a VPN tunnel the DHCP relay depends on) |
+| HSRP Virtual IP/MAC | The shared virtual IP and virtual MAC make failover invisible to end devices — no ARP table changes needed during a takeover |
+| HSRP Election Stickiness | Priority alone only decides the *first* election with no incumbent; once Active, only a higher-priority peer WITH `preempt` can force a live takeover |
+| HSRP Blind Spot | Plain HSRP hellos travel over the LAN-facing interface only — a healthy-looking Active router can still be cut off upstream, unless `standby track` is configured |
+
+---
+
+## Redundancy — Next Steps (Phase 6 Continuation Checklist)
+
+- [ ] Replicate the HSRP pattern across remaining Toronto VLANs: 20, 40, 88, 99, 100
+- [ ] Decide priority/preempt distribution per VLAN
+- [ ] Configure `standby track` on both switches' uplink toward `YYZ-BR-RTR-01`
+- [ ] Add CS-02 into OSPF
+- [ ] Extend `ip helper-address` / DHCP relay config to CS-02's SVIs
+- [ ] Run a genuine failure-triggered failover test
+- [ ] Repeat the same HSRP pattern at NYC-HQ
+- [ ] Consider dual-homing the edge router uplink as a separate future phase
+- [ ] Update this section with final config details once complete
