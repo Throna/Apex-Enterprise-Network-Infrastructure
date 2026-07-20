@@ -184,6 +184,10 @@ Migrated the entire inter-site and intra-site routing architecture from rigid st
 This phase began as a hands-on hub-and-spoke crypto map exercise (adding a third branch, "London," to test multi-peer IPsec routing) and evolved into a live disaster-recovery exercise after an unplanned configuration loss on `NYC-HQ-RTR-01`, followed by the start of Layer 3 gateway redundancy (HSRP) at the Toronto distribution layer.
 
 ### 1. Hub-and-Spoke Crypto Map Exploration (London Branch)
+
+*Note: The London branch described below was a temporary learning exercise and is no longer part of the topology. It is documented here because the concepts validated during its build (multi-peer crypto maps, hub-and-spoke ACL scoping) remain part of this project's engineering record.*
+
+
 - Built a third branch router ("London") connected to `NYC-HQ-RTR-01` via a dedicated transit link, intended to validate a hub-and-spoke IPsec topology where NYC acts as the hub relaying encrypted traffic between Toronto and London.
 - Confirmed the core hub-and-spoke crypto map pattern: multiple `crypto map <name> <seq>` entries under one map name, each with its own peer and its own dedicated crypto ACL, but a shared/reusable ISAKMP policy and transform-set (since those describe capabilities, not relationships).
 - **Key finding**: crypto ACLs cannot be shared across tunnels to different peers — the `match address` ACL is what ties traffic to a specific peer's crypto map sequence entry. Consolidating multiple tunnels' traffic into one ACL causes traffic to be misdirected to the wrong peer.
@@ -204,15 +208,27 @@ This phase began as a hands-on hub-and-spoke crypto map exercise (adding a third
 - **Workaround discovered**: removing and re-applying the crypto map on the interface (`no crypto map <name>` then `crypto map <name>`) forces both peers to drop stale SA state and renegotiate Phase 1 cleanly. Confirmed both peers returned to matching `QM_IDLE/ACTIVE` state afterward.
 - **Downstream effect confirmed**: centralized DHCP relay for Toronto data VLANs only succeeded once Phase 1/Phase 2 were both re-established — a device showing an APIPA address was correctly traced back to "tunnel not yet up" rather than a DHCP or ACL misconfiguration.
 
-### 4. HSRP Gateway Redundancy (Toronto Distribution Layer) — In Progress
-- **Objective**: eliminate the single point of failure at the Toronto core switch (`YYZ-BR-CS-01`).
-- Added a second Layer 3 switch, `YYZ-BR-CS-02`, dual-homed to both existing access switches (`2960-24TT`, `2960-24PS`) alongside CS-01, plus a dedicated inter-switch link between CS-01 and CS-02 for HSRP hello exchange.
-- Re-addressed VLAN 10 SVIs: CS-01 retained a dedicated real IP (`10.10.10.252`), CS-02 assigned `10.10.10.253`, freeing the original gateway address (`10.10.10.254`) to become the shared HSRP virtual IP — no end-device reconfiguration required.
-- Configured HSRP group 10 on VLAN 10 on both switches (`standby 10 ip 10.10.10.254`); confirmed CS-01 elected Active by default, CS-02 correctly showing Standby.
-- Tested and confirmed priority + preempt behavior: setting CS-02 to priority 150 with `standby 10 preempt` forced a clean, disruption-free takeover from a healthy CS-01 — virtual IP and virtual MAC remained constant throughout, requiring no ARP re-learning by end devices.
-- **Remaining work**: replicate HSRP across VLANs 20, 40, 88, 99, 100; configure `standby track` against each switch's uplink; integrate CS-02 into OSPF; validate a genuine failure-triggered failover.
+
+### 4. HSRP Gateway Redundancy (Both Sites) — Completed
+
+**Toronto (YYZ-BR) and New York (NYC-HQ) — Full Build:**
+- Added a second Layer 3 switch at each site (`YYZ-BR-CS-02`, `NYC-HQ-CS-02`), dual-homed to all existing access switches alongside the original core switch, plus a dedicated inter-switch link for HSRP hello exchange.
+- Re-addressed every VLAN SVI with a dedicated real IP per switch (`.252`/`.253` convention), freeing the original gateway address on each VLAN to become the shared HSRP virtual IP — zero end-device reconfiguration required across either site.
+- Implemented **HSRP load-sharing**: primary/Active role split across VLANs between the two switches at each site (rather than one switch sitting idle), with priority 105 configured on whichever switch is primary for a given VLAN, default 100 on the backup.
+- Added a **second, independent physical uplink** from each site's CS-02 to its respective edge router (`HWIC-1GE-SFP` module + `GLC-LH-SMD` fiber transceiver, after discovering EtherSwitch modules cannot provide genuine routed interfaces), giving each core switch a real, separate path to the WAN — a prerequisite for `standby track` to be functionally meaningful rather than cosmetic.
+- Fully integrated both CS-02 switches into OSPF, with unique router-IDs and `network` statements covering every real interface (verified systematically via `show ip interface brief` cross-checked against `show running-config | section router ospf` on every device, both routers and all four core switches).
+- Configured `standby track` on each switch's own dedicated uplink interface, per VLAN it is primary on.
+- **Key finding**: this platform's simulated IOS does not support a configurable `decrement` parameter on `standby track` (unlike real Cisco IOS) — it only accepts a bare `track <interface>` with an implicit default decrement of 10. Priority values were retuned (105/100 instead of the initially-planned 150/100) so the fixed default decrement would actually be sufficient to flip an election on failure.
+- **Key finding**: `preempt` must be configured on **both** switches for every group, not just the switch intended as "primary." Preempt governs whether a switch is willing to seize Active status from a peer whose priority has become lower — a tracked-interface failure event requires the *backup* switch to have preempt configured, or it will correctly see a lower-priority incumbent and still decline to take over.
+- **Verified with a live, failure-triggered test** (not just a priority/preempt demonstration): shut down a tracked uplink interface, confirmed automatic failover to the peer switch, restored the interface, and confirmed automatic reclaim by the original primary switch via preempt — the full HSRP lifecycle observed end-to-end with real command output at every stage.
+- **Troubleshooting note**: mid-build, HSRP unexpectedly failed to form peer relationships for a subset of VLANs despite correct configuration, healthy physical links, and correct STP forwarding state on all interfaces. Root cause was traced to accumulated Packet Tracer simulation-engine state corruption (not a configuration error) after an extended, heavily-modified session — resolved by a full topology power cycle. Config was saved before the reset, per the standing `write memory` / verification discipline established earlier in Phase 6.
 
 ---
+
+## Redundancy — Phase 6 Status: Complete
+
+Both Toronto and New York now have independently uplinked, load-shared, tracked, preempt-symmetric dual-core-switch HSRP redundancy, verified against a live, failure-triggered test rather than configuration inspection alone.
+
 
 ## 📚 Key Engineering Lessons Documented (Phase 6 Additions)
 
@@ -229,16 +245,12 @@ This phase began as a hands-on hub-and-spoke crypto map exercise (adding a third
 | HSRP Election Stickiness | Priority alone only decides the *first* election with no incumbent; once Active, only a higher-priority peer WITH `preempt` can force a live takeover |
 | HSRP Blind Spot | Plain HSRP hellos travel over the LAN-facing interface only — a healthy-looking Active router can still be cut off upstream, unless `standby track` is configured |
 
----
+## 📚 Key Engineering Lessons Documented (Phase 6 Additions, Part 2)
 
-## Redundancy — Next Steps (Phase 6 Continuation Checklist)
-
-- [ ] Replicate the HSRP pattern across remaining Toronto VLANs: 20, 40, 88, 99, 100
-- [ ] Decide priority/preempt distribution per VLAN
-- [ ] Configure `standby track` on both switches' uplink toward `YYZ-BR-RTR-01`
-- [ ] Add CS-02 into OSPF
-- [ ] Extend `ip helper-address` / DHCP relay config to CS-02's SVIs
-- [ ] Run a genuine failure-triggered failover test
-- [ ] Repeat the same HSRP pattern at NYC-HQ
-- [ ] Consider dual-homing the edge router uplink as a separate future phase
-- [ ] Update this section with final config details once complete
+| Concept | Lesson |
+| :--- | :--- |
+| Dual-Homing Prerequisite | `standby track` only produces a meaningful failover if the tracking switch has its own independent physical path to the resource being tracked — without a second uplink, "failover" just relocates the same outage |
+| Preempt Symmetry | `preempt` must be configured on every switch in a group, not just the intended primary — it governs willingness to seize Active status from any lower-priority incumbent, which the backup switch needs during a tracked-failure event, not just during its own post-crash recovery |
+| Platform Decrement Limitation | This Packet Tracer IOS version only supports a fixed default `track` decrement (10) — priority spreads must be deliberately tuned to that fixed value rather than assumed configurable |
+| OSPF Coverage Audit Method | For any device, cross-check every real IP in `show ip interface brief` against the device's own `network` statements — network statements from one device are never inherited by or relevant to another device's OSPF process |
+| Simulation-State Corruption | Extended, heavily-modified Packet Tracer sessions can accumulate simulation-engine state issues that mimic real configuration bugs (e.g., asymmetric STP roles, HSRP peers going "unknown") — a full topology power cycle can resolve these when configuration has been independently verified correct |
