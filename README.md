@@ -252,11 +252,22 @@ This phase began as a hands-on hub-and-spoke crypto map exercise (adding a third
 
 ---
 
+### 5. DHCP Relay Audit — CS-02 Helper-Address Extension (Completed)
+
+Extending `ip helper-address` coverage to both CS-02 switches surfaced three real issues beyond the original scope of "just add the missing lines," found and corrected through a full audit rather than a blind copy from CS-01:
+
+- **Telephony config loss on both edge routers**: consistent with the platform's known `write memory`/reload unreliability (see Phase 6, section 2) — resolved the same way, via `copy running-config startup-config`, and re-verified all phones re-registered with correct IPs and extensions.
+- **Misdirected helper-address on Toronto's data VLANs**: several VLANs were pointing `ip helper-address` at `10.20.90.2` (NYC's edge router interface) instead of the actual centralized DHCP server at `10.20.88.1` — corrected on all affected VLANs, both CS-01 and CS-02.
+- **Voice helper-address present on non-voice VLANs**: the local telephony helper-address had been duplicated onto data VLANs that don't carry voice traffic at all (voice separation is already handled correctly at the switchport level via `switchport voice vlan 100/200`, an entirely separate mechanism from `ip helper-address`). Removed from all data VLANs, retained only on the actual voice VLAN (100 on Toronto, 200 on NYC).
+- **Stray helper-address on VLAN 888 (NYC Data Center Core)**: this VLAN hosts the DHCP/DNS server itself and uses static addressing (per the original design) — client and server sharing a subnet means no relay is ever needed, and a helper-address pointing a VLAN at a server that's directly, locally connected on that same VLAN is functionally pointless. Removed.
+- **Final audited state, confirmed on both CS-01 and CS-02 at each site**: every data VLAN relays to its site's centralized DHCP source; the voice VLAN alone relays to the local telephony source; no VLAN carries a helper-address it doesn't functionally need.
+
+---
+
 ## Redundancy — Phase 6 Status: ✅ Complete
 
-Both Toronto and New York now have independently uplinked, load-shared, tracked, preempt-symmetric dual-core-switch HSRP redundancy, verified against a live, failure-triggered test rather than configuration inspection alone.
+Both Toronto and New York now have independently uplinked, load-shared, tracked, preempt-symmetric dual-core-switch HSRP redundancy, verified against a live, failure-triggered test rather than configuration inspection alone. DHCP relay coverage across both CS-02 switches has been extended, audited, and corrected (see section 5).
 
 **Deferred to a future phase (not a current gap — a deliberate scope boundary):**
 - Dual-homing the edge routers' own WAN/internet-facing links (the single remaining site-level point of failure)
-- Extending `ip helper-address` / DHCP relay presence to CS-02 SVIs where not already covered
 - Exploring SD-WAN concepts as the modern, software-managed evolution of the dual-path/multi-homing pattern built manually in this phase
